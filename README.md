@@ -34,7 +34,7 @@ FDTD22.exe 101 101 102 1001
 `binToFigure.m`で実装されているbinToFigure関数により表面プロットを行う
 
 ```
-binToFigure('https://github.com/NEETFUTURE/EM_FDTD/blob/master/1001.png', 101, 101);
+binToFigure('20190228042128_EM_FDTD22.bin', 101, 101);
 ```
-![1001ステップでの解析結果](https://github.com/NEETFUTURE/EM_FDTD/1001.png)
+![1001ステップでの解析結果](https://github.com/NEETFUTURE/EM_FDTD/blob/master/1001.png)
 
