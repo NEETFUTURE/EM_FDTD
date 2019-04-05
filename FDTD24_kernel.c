@@ -3,8 +3,9 @@
 //--------------------------
 
 #include <math.h>
+#include <omp.h>
 
-void FDTD24(
+double FDTD24(
     float *Ex, float *Ey, float *Ez,
     float *Hx, float *Hy, float *Hz,
     float *CEx, float *CEy, float *CEz,
@@ -16,13 +17,18 @@ void FDTD24(
     unsigned long Nx, unsigned long Ny, unsigned long Nz, int Nt, double Ds, double dt,
     double CG1, double CG2,
     unsigned long ant_pos_x, unsigned long ant_pos_y, unsigned long ant_pos_z, float time_ini
+#ifdef TILE
+    ,unsigned long YBF
+#endif
     )
 {
+  double start,end;
   unsigned long i,j,k;
   unsigned long Nxy = Nx*Ny;
   float wave;
 
-  for(int step=0; step<Nt; step++)
+  start = omp_get_wtime();
+  for(int step=0; step<Nt+1; step++)
   {
 
 #ifdef DEBUG
@@ -43,15 +49,32 @@ void FDTD24(
     //--------------------------
     //解析空間の磁界計算
     //--------------------------
-#pragma omp parallel for private(i,j)
-    for(k=0; k<Nz; k++)
-    {
-      for(j=0; j<Ny; j++)
-      {
-        for(i=0; i<Nx; i++)
-        {
+#ifdef COLLAPSE
+#pragma omp parallel for collapse(2)
+#else
+#pragma omp parallel for
+#endif
 
-          unsigned long ID = i+j*Nx+k*Nxy;
+#ifdef TILE
+    for(unsigned long jj=0; jj < Ny; jj += YBF)
+    {
+#endif
+    for(unsigned long k=0; k<Nz; k++)
+    {
+#ifdef TILE
+      unsigned long jmax = jj + YBF;
+      if(jmax >= Ny) jmax = Ny;
+      for(unsigned long j = jj; j < jmax; j++)
+#else
+      for(unsigned long j=0; j<Ny; j++)
+#endif
+      {
+        unsigned long ID = 0 + j * Nx + k * Nxy;
+#ifdef SIMD
+#pragma omp simd
+#endif
+        for(unsigned long i=0; i<Nx; i++)
+        {
 
           // Magnetic Field Hx //
           if(         i<Nx   &&
@@ -86,22 +109,44 @@ void FDTD24(
               + CH_dxyz_A[val[ID]] * (Ex[ID+Nx] - Ex[ID])
               - CH_dxyz_B[val[ID]] * (Ex[ID+2*Nx] - Ex[ID-Nx]);
           }
+
+          ID++;
         }
       }
     }
+#ifdef TILE
+    }
+#endif
 
     //--------------------------
     //解析空間の電界計算
     //--------------------------
-#pragma omp parallel for private(i,j)
-    for(k = 0; k < Nz; k++)
-    {
-      for(j = 0; j < Ny; j++)
-      {
-        for(i = 0; i < Nx; i++)
-        {
+#ifdef COLLAPSE
+#pragma omp parallel for collapse(2)
+#else
+#pragma omp parallel for
+#endif
 
-          unsigned long ID = i+j*Nx+k*Nxy;
+#ifdef TILE
+    for(unsigned long jj=0; jj < Ny; jj += YBF)
+    {
+#endif
+    for(unsigned long k = 0; k < Nz; k++)
+    {
+#ifdef TILE
+      unsigned long jmax = jj + YBF;
+      if(jmax >= Ny) jmax = Ny;
+      for(unsigned long j = jj; j < jmax; j++)
+#else
+      for(unsigned long j = 0; j < Ny; j++)
+#endif
+      {
+        unsigned long ID = 0 + j * Nx + k * Nxy;
+#ifdef SIMD
+#pragma omp simd
+#endif
+        for(unsigned long i = 0; i < Nx; i++)
+        {
 
           // Electric Field Ex //
           if(        i<Nx   &&
@@ -136,9 +181,17 @@ void FDTD24(
               - CEz_dxyz_A[val[ID]] * (Hx[ID]   - Hx[ID-Nx])
               + CEz_dxyz_B[val[ID]] * (Hx[ID+Nx] - Hx[ID-2*Nx]);
           }
+
+          ID++;
         }
       }
     }
+#ifdef TILE
+    }
+#endif
   }
+
+  end = omp_get_wtime();
+  return end - start;
 }
 

@@ -9,8 +9,11 @@
 #include <math.h>
 #include <time.h>
 #include <omp.h>
-#include "FDTD24_kernel.c"
+#if SCHEME==2
 #include "FDTD22_kernel.c"
+#elif SCHEME==4
+#include "FDTD24_kernel.c"
+#endif
 
 // FDTD22法の場合はSCHEMEに2, 24法の場合は4を選択する
 #if SCHEME==2 || SCHEME==4
@@ -38,12 +41,18 @@ int main
   unsigned long Ny = 101;
   unsigned long Nz = 102;
   unsigned long Nt = 2000;
+  unsigned long YBF = 8;
 
-  if(argc==5){
+  if(argc>=4){
     Nx = (int)atoi(argv[1]);
     Ny = (int)atoi(argv[2]);
     Nz = (int)atoi(argv[3]);
+  }
+  if(argc>=5){
     Nt = (int)atoi(argv[4]);
+  }
+  if(argc>=6){
+    YBF = (unsigned long)atoi(argv[5]);
   }
 
   float *Ex;
@@ -63,7 +72,7 @@ int main
 
   unsigned long elements = Nx*Ny*Nz*sizeof(float);
 
-  printf("Scheme is %s\n", scheme[SCHEME-1]);
+  printf("Scheme is %s\n", scheme[(int)(SCHEME/2-1)]);
   printf("Nx = %lu\n", Nx);
   printf("Ny = %lu\n", Ny);
   printf("Nz = %lu\n", Nz);
@@ -226,10 +235,11 @@ int main
   printf("ant_pos_y = %lu\n", ant_pos_y);
   printf("ant_pos_z = %lu\n", ant_pos_z);
 
+  double processing_time;
 
 
 #if SCHEME==2
-  FDTD22(
+  processing_time = FDTD22(
       Ex,  Ey,  Ez,
       Hx,  Hy,  Hz,
       CEx, CEy, CEz,
@@ -243,9 +253,12 @@ int main
       ant_pos_y,
       ant_pos_z,
       time_ini
+#ifdef TILE
+      ,YBF
+#endif
       );
-#elif SCHEME==1
-  FDTD24(
+#elif SCHEME==4
+  processing_time = FDTD24(
       Ex,  Ey,  Ez,
       Hx,  Hy,  Hz,
       CEx, CEy, CEz,
@@ -261,18 +274,50 @@ int main
       ant_pos_y,
       ant_pos_z,
       time_ini
+#ifdef TILE
+      ,YBF
+#endif
       );
 #endif
+
+  char cfg_str[300];
+  char ybf_str[80];
+#ifdef SIMD
+  strcat(cfg_str, "_SIMD");
+#endif
+#ifdef COLLAPSE
+  strcat(cfg_str, "_COLLAPSE");
+#endif
+#ifdef TILE
+  sprintf(ybf_str, "_TILE%lu", YBF);
+  strcat(cfg_str, ybf_str);
+#endif
+  if(strlen(cfg_str)==0)
+  {
+    strcat(cfg_str, "_NOOPT");
+  }
 
   time_t now = time(NULL);
   struct tm *pnow = localtime(&now);
   char filename[80];
 
+#ifdef DEBUG
   // Z方向の電場をファイル出力
-  sprintf(filename, "%04d%02d%02d%02d%02d%02d_EM_%s_Ez.bin",pnow->tm_year+1900,pnow->tm_mon+1,pnow->tm_mday,pnow->tm_hour,pnow->tm_min,pnow->tm_sec, scheme[(int)(SCHEME/2)-1]);
+  sprintf(filename, "%04d%02d%02d%02d%02d%02d_EM_%s%s_Ez.bin",pnow->tm_year+1900,pnow->tm_mon+1,pnow->tm_mday,pnow->tm_hour,pnow->tm_min,pnow->tm_sec, scheme[(int)(SCHEME/2)-1], cfg_str);
   fp = fopen(filename,"wb");
   fwrite(&Ez[Nxy*Nz/2], sizeof(float), Nx*Ny, fp);
   fclose(fp);
+#endif
 
+  // 計算時間の記録
+  sprintf(filename, "EM_%s_%lu%lu%s_Ez.csv", scheme[(int)(SCHEME/2)-1], Nx, Nt, cfg_str);
+  fp = fopen(filename,"a");
+#ifdef DEBUG
+  fprintf(fp, "debugged!-- ");
+#endif
+  fprintf(fp, "%lf\n", processing_time);
+  fclose(fp);
+
+  printf("Finish!\n");
   return 0;
 }
