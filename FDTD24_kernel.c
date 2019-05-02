@@ -39,6 +39,10 @@ double FDTD24(
   start = omp_get_wtime();
   for(int step=0; step<Nt+1; step++)
   {
+    if(step == THRESHOLD)
+    {
+      start = omp_get_wtime();
+    }
 
 #ifdef DEBUG
     if(step%10==0)

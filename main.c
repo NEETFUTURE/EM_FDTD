@@ -9,6 +9,7 @@
 #include <math.h>
 #include <time.h>
 #include <omp.h>
+#define THRESHOLD 200
 #if SCHEME==2
 #include "FDTD22_kernel.c"
 #elif SCHEME==4
