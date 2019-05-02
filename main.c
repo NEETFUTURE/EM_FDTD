@@ -291,6 +291,8 @@ int main
 
   char cfg_str[300];
   char ybf_str[80];
+
+  sprintf(cfg_str, "");
 #ifdef SIMD
   strcat(cfg_str, "_SIMD");
 #endif
