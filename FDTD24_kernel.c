@@ -5,7 +5,11 @@
 #include <math.h>
 #include <omp.h>
 
+#ifdef DEBUG_LAP
+double* FDTD24(
+#else
 double FDTD24(
+#endif
     float *Ex, float *Ey, float *Ez,
     float *Hx, float *Hy, float *Hz,
     float *CEx, float *CEy, float *CEz,
@@ -26,6 +30,11 @@ double FDTD24(
   unsigned long i,j,k;
   unsigned long Nxy = Nx*Ny;
   float wave;
+#ifdef DEBUG_LAP
+  double lap_start = 0.0;
+  double *laptimes;
+  laptimes = (double *)malloc(sizeof(double)*Nt);
+#endif
 
   start = omp_get_wtime();
   for(int step=0; step<Nt+1; step++)
@@ -36,6 +45,9 @@ double FDTD24(
     {
       printf("step = %d\n", step);
     }
+#endif
+#ifdef DEBUG_LAP
+    lap_start = omp_get_wtime();
 #endif
 
     wave = (float)(CG1 * expf(-((((float)step * dt) - time_ini) * (((float)step * dt) - time_ini)) * CG2));
@@ -189,9 +201,17 @@ double FDTD24(
 #ifdef TILE
     }
 #endif
+
+#ifdef DEBUG_LAP
+    laptimes[step] = omp_get_wtime() - lap_start;
+#endif
   }
 
+#ifdef DEBUG_LAP
+  return laptimes;
+#else
   end = omp_get_wtime();
   return end - start;
+#endif
 }
 

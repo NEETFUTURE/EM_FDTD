@@ -236,10 +236,15 @@ int main
   printf("ant_pos_z = %lu\n", ant_pos_z);
 
   double processing_time;
+  double *laptime;
 
 
 #if SCHEME==2
+#ifdef DEBUG_LAP
+  laptime = FDTD22(
+#else
   processing_time = FDTD22(
+#endif
       Ex,  Ey,  Ez,
       Hx,  Hy,  Hz,
       CEx, CEy, CEz,
@@ -258,7 +263,11 @@ int main
 #endif
       );
 #elif SCHEME==4
+#ifdef DEBUG_LAP
+  laptime = FDTD24(
+#else
   processing_time = FDTD24(
+#endif
       Ex,  Ey,  Ez,
       Hx,  Hy,  Hz,
       CEx, CEy, CEz,
@@ -310,13 +319,20 @@ int main
 #endif
 
   // 計算時間の記録
-  sprintf(filename, "EM_%s_%lu%lu%s_Ez.csv", scheme[(int)(SCHEME/2)-1], Nx, Nt, cfg_str);
+#ifdef DEBUG_LAP
+  sprintf(filename, "EM_%s_%lu_%lu%s_timelap.csv", scheme[(int)(SCHEME/2)-1], Nx, Nt, cfg_str);
+  fp = fopen(filename,"w");
+  for(int step=0; step < Nt; step++)
+  {
+    fprintf(fp, "%lf\n", laptime[step]);
+  }
+  fclose(fp);
+#else
+  sprintf(filename, "EM_%s_%lu_%lu%s_Ez.csv", scheme[(int)(SCHEME/2)-1], Nx, Nt-THRESHOLD, cfg_str);
   fp = fopen(filename,"a");
-#ifdef DEBUG
-  fprintf(fp, "debugged!-- ");
-#endif
   fprintf(fp, "%lf\n", processing_time);
   fclose(fp);
+#endif
 
   printf("Finish!\n");
   return 0;
